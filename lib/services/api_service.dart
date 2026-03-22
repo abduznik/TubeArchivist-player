@@ -28,6 +28,35 @@ class ApiService {
     return url.endsWith('/') ? url.substring(0, url.length - 1) : url;
   }
 
+  Future<Map<String, dynamic>> getVideosWithPagination({
+    int page = 0,
+    String? channelId,
+  }) async {
+    final uri = Uri.parse('$_baseUrl${AppConstants.endpointVideo}')
+        .replace(queryParameters: {
+          'page': page.toString(),
+          'page_size': '50', 
+          'ordering': '?', 
+          if (channelId != null) 'channel': channelId,
+        });
+
+    final response = await http.get(uri, headers: _headers);
+
+    if (response.statusCode == 200) {
+      final data = jsonDecode(response.body);
+      final List<Video> videos = (data['data'] as List)
+          .map((v) => Video.fromJson(v, _baseUrl))
+          .toList();
+      final int lastPage = data['paginate']['last_page'] as int;
+      return {
+        'videos': videos,
+        'last_page': lastPage,
+      };
+    } else {
+      throw Exception('Failed to load videos with pagination: ${response.statusCode}');
+    }
+  }
+
   Future<List<Video>> getVideos({int page = 0, String? channelId}) async {
     final queryParams = {
       'page': page.toString(),
@@ -37,7 +66,8 @@ class ApiService {
     final uri = Uri.parse('$_baseUrl${AppConstants.endpointVideo}')
         .replace(queryParameters: {
           'page': page.toString(),
-          'ordering': '?', // Add ordering parameter for random order (if supported)
+          'page_size': '50', // Add page_size parameter for more videos per page
+          'ordering': '?', 
           if (channelId != null) 'channel': channelId,
         });
 
