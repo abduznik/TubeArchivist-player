@@ -14,7 +14,7 @@ class DownloadsScreen extends StatefulWidget {
   State<DownloadsScreen> createState() => _DownloadsScreenState();
 }
 
-class _DownloadsScreenState extends State<DownloadsScreen> with SingleTickerProviderStateMixin {
+class _DownloadsScreenState extends State<DownloadsScreen> with SingleTickerProviderStateMixin, WidgetsBindingObserver {
   late TabController _tabController;
   final TextEditingController _urlController = TextEditingController();
   
@@ -27,6 +27,7 @@ class _DownloadsScreenState extends State<DownloadsScreen> with SingleTickerProv
   void initState() {
     super.initState();
     _tabController = TabController(length: 2, vsync: this);
+    WidgetsBinding.instance.addObserver(this); // Register observer
     _loadQueue();
     _loadOfflineVideos();
     _startTimer();
@@ -37,11 +38,24 @@ class _DownloadsScreenState extends State<DownloadsScreen> with SingleTickerProv
     _refreshTimer?.cancel();
     _tabController.dispose();
     _urlController.dispose();
+    WidgetsBinding.instance.removeObserver(this); // Unregister observer
     super.dispose();
   }
 
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      _startTimer(); // Start timer when app resumes
+      _loadQueue(); // Also refresh immediately
+      _loadOfflineVideos();
+    } else if (state == AppLifecycleState.paused) {
+      _refreshTimer?.cancel(); // Cancel timer when app pauses
+    }
+  }
+
   void _startTimer() {
-    _refreshTimer = Timer.periodic(const Duration(seconds: 5), (_) {
+    _refreshTimer?.cancel(); // Cancel any existing timer
+    _refreshTimer = Timer.periodic(const Duration(seconds: 10), (_) { // Increased interval to 10 seconds
       if (mounted && _tabController.index == 0) { // Only refresh if on Queue tab
         _loadQueue();
       }
@@ -140,7 +154,7 @@ class _DownloadsScreenState extends State<DownloadsScreen> with SingleTickerProv
                         ),
                         const SizedBox(width: 8),
                         IconButton.filled(
-                          onPressed: _isAdding ? null : _addToQueue,
+                          onPressed: _isAdding ? null : () => _addToQueue(), // Wrapped in anonymous function
                           icon: _isAdding 
                               ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
                               : const Icon(Icons.add),
