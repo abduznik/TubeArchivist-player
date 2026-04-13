@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:timeago/timeago.dart' as timeago;
 import '../../../models/video.dart';
 import '../../../screens/player/player_screen.dart';
+import '../../../screens/channel/channel_screen.dart';
 
 class VideoCard extends StatelessWidget {
   final Video video;
@@ -83,11 +84,25 @@ class VideoCard extends StatelessWidget {
                     style: const TextStyle(fontWeight: FontWeight.bold),
                   ),
                   const SizedBox(height: 4),
-                  Text(
-                    '${video.channelName} • ${timeago.format(video.published)}',
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: Theme.of(context).textTheme.bodySmall,
+                  GestureDetector(
+                    onTap: () {
+                      Navigator.of(context).push(
+                        MaterialPageRoute(
+                          builder: (_) => ChannelScreen(
+                            channelId: video.channelId,
+                            channelName: video.channelName,
+                          ),
+                        ),
+                      );
+                    },
+                    child: Text(
+                      '${video.channelName} • ${timeago.format(video.published)}',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                            color: Colors.blueAccent,
+                          ),
+                    ),
                   ),
                 ],
               ),

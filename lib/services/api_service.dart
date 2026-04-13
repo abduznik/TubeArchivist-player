@@ -189,6 +189,126 @@ class ApiService {
     }
   }
 
+  Future<List<Video>> getRelatedVideos(String videoId) async {
+    final uri = Uri.parse('$_baseUrl${AppConstants.endpointVideo}$videoId/nav/');
+    try {
+      final response = await http.post(uri, headers: _headers);
+      if (response.statusCode == 200) {
+        final json = jsonDecode(response.body);
+        final List<Video> related = [];
+        
+        // TA nav returns "next" and "previous". We'll treat "next" as related for now.
+        // It might also return a list of related if configured.
+        if (json['next'] != null) {
+          related.add(Video.fromJson(json['next'], _baseUrl));
+        }
+        
+        // If TA doesn't provide many related via nav, we can fallback to same channel
+        if (related.length < 5) {
+          final video = await getVideo(videoId);
+          final channelVideos = await getVideos(channelId: video.channelId);
+          related.addAll(channelVideos.where((v) => v.id != videoId).take(10 - related.length));
+        }
+        
+        return related;
+      }
+    } catch (e) {
+      print('Error fetching related videos: $e');
+    }
+    return [];
+  }
+
+  Future<List<Video>> getLibrary() async {
+    // Fetch videos that are partially watched or fully watched
+    // For now, let's fetch recently indexed videos as a placeholder or 
+    // try to find a "watched" filter if supported.
+    // Assuming TA supports filtering by watched status in the future or via some query param.
+    final uri = Uri.parse('$_baseUrl${AppConstants.endpointVideo}')
+        .replace(queryParameters: {'watched': 'true', 'page_size': '20'});
+    
+    final response = await http.get(uri, headers: _headers);
+
+    if (response.statusCode == 200) {
+      final json = jsonDecode(response.body);
+      final List<dynamic> data = json is List ? json : (json['data'] ?? []);
+      return data.map((e) => Video.fromJson(e, _baseUrl)).toList();
+    } else {
+      return [];
+    }
+  }
+
+  Future<List<dynamic>> getComments(String videoId) async {
+    final uri = Uri.parse('$_baseUrl${AppConstants.endpointVideo}$videoId/comment/');
+    try {
+      final response = await http.get(uri, headers: _headers);
+      if (response.statusCode == 200) {
+        final json = jsonDecode(response.body);
+        return json is List ? json : (json['data'] ?? []);
+      }
+    } catch (e) {
+      print('Error fetching comments: $e');
+    }
+    return [];
+  }
+
+  Future<List<Video>> getRecentVideos({int page = 1}) async {
+    final baseUrlClean = _baseUrl.endsWith('/') ? _baseUrl.substring(0, _baseUrl.length - 1) : _baseUrl;
+    final endpointClean = AppConstants.endpointVideo.endsWith('/') 
+        ? AppConstants.endpointVideo.substring(0, AppConstants.endpointVideo.length - 1) 
+        : AppConstants.endpointVideo;
+    
+    // Trying 'sort' and 'direction' which are common in some versions
+    final uri = Uri.parse('$baseUrlClean$endpointClean').replace(queryParameters: {
+      'page': page.toString(),
+      'page_size': '20',
+      'sort': 'published',
+      'direction': 'desc',
+    });
+    
+    print('ApiService: Fetching recent videos from: $uri');
+    final response = await http.get(uri, headers: _headers);
+    if (response.statusCode == 200) {
+      final json = jsonDecode(response.body);
+      final List<dynamic> data = json is List ? json : (json['data'] ?? []);
+      
+      if (data.isNotEmpty) {
+        print('ApiService: ALL Raw Keys: ${data[0].keys.toList()}');
+        print('ApiService: Raw Published: ${data[0]['published']}');
+      }
+
+      final videos = data.map((e) => Video.fromJson(e, _baseUrl)).toList();
+      
+      // Keep local sort as safety for page 1
+      if (page == 1 && videos.length > 1) {
+        videos.sort((a, b) => b.published.compareTo(a.published));
+      }
+
+      return videos;
+    }
+    return [];
+  }
+
+  Future<List<Video>> getContinueWatching() async {
+    // Some TA versions support progress=true or looking for unfinished videos
+    // Fallback: Use getLibrary but filter for those with position > 0 or specific status if possible
+    // For this mock/impl, let's assume a "progress=true" filter or similar exists
+    final uri = Uri.parse('$_baseUrl${AppConstants.endpointVideo}')
+        .replace(queryParameters: {'progress': 'true', 'page_size': '20'});
+    
+    final response = await http.get(uri, headers: _headers);
+    if (response.statusCode == 200) {
+      final json = jsonDecode(response.body);
+      final List<dynamic> data = json is List ? json : (json['data'] ?? []);
+      return data.map((e) => Video.fromJson(e, _baseUrl)).toList();
+    }
+    return [];
+  }
+
+  Future<void> retryDownload(String youtubeId) async {
+    // Retry usually means adding it again
+    await addToQueue(youtubeId);
+  }
+
   Future<bool> testConnection() async {
     try {
       final uri = Uri.parse('$_baseUrl${AppConstants.endpointPing}');

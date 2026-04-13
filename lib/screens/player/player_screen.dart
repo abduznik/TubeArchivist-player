@@ -1,9 +1,8 @@
 import 'dart:async';
 import 'dart:io';
 import 'package:flutter/material.dart';
-import 'package:flutter/foundation.dart';
-import 'package:video_player/video_player.dart';
-import 'package:chewie/chewie.dart';
+import 'package:media_kit/media_kit.dart';
+import 'package:media_kit_video/media_kit_video.dart' as mk;
 import 'package:path_provider/path_provider.dart';
 
 import '../../models/video.dart';
@@ -22,18 +21,44 @@ class PlayerScreen extends StatefulWidget {
 }
 
 class _PlayerScreenState extends State<PlayerScreen> {
-  VideoPlayerController? _videoPlayerController;
-  ChewieController? _chewieController;
+  // MediaKit controllers
+  late final Player _player = Player();
+  late final mk.VideoController _videoController = mk.VideoController(_player);
+  
   Timer? _progressTimer;
   bool _isDownloading = false;
   double _downloadProgress = 0.0;
   bool _isOffline = false;
+  bool _isInitialized = false;
+  List<Video> _relatedVideos = [];
+  List<dynamic> _comments = [];
+  bool _isLoadingExtras = false;
+  String? _token;
 
   @override
   void initState() {
     super.initState();
-    if (defaultTargetPlatform != TargetPlatform.windows) {
-      _initializePlayer();
+    _initializePlayer();
+    _loadExtras();
+  }
+
+  Future<void> _loadExtras() async {
+    setState(() => _isLoadingExtras = true);
+    try {
+      final prefs = PreferencesService();
+      final token = await prefs.getToken();
+      final related = await ApiService().getRelatedVideos(widget.video.id);
+      final comments = await ApiService().getComments(widget.video.id);
+      if (mounted) {
+        setState(() {
+          _token = token;
+          _relatedVideos = related;
+          _comments = comments;
+          _isLoadingExtras = false;
+        });
+      }
+    } catch (e) {
+      if (mounted) setState(() => _isLoadingExtras = false);
     }
   }
 
@@ -42,88 +67,55 @@ class _PlayerScreenState extends State<PlayerScreen> {
     final localPath = '${appDir.path}/downloads/${widget.video.id}.mp4';
     final localFile = File(localPath);
     
+    final prefs = PreferencesService();
+    final token = await prefs.getToken() ?? '';
+    final serverUrl = await prefs.getServerUrl() ?? '';
+    
     if (await localFile.exists()) {
-      // MUST use file controller - no network involved at all
-      _videoPlayerController = VideoPlayerController.file(localFile);
-      if (mounted) { // Ensure mounted before setState
-        setState(() => _isOffline = true);
-      }
+      _isOffline = true;
+      await _player.open(Media(localFile.path));
     } else {
-      // Only use network if local file does NOT exist
-      final prefs = PreferencesService();
-      final token = await prefs.getToken() ?? '';
-      final serverUrl = await prefs.getServerUrl() ?? '';
+      _isOffline = false;
       final fullUrl = widget.video.mediaUrl.startsWith('http')
           ? widget.video.mediaUrl
           : '$serverUrl${widget.video.mediaUrl}';
-      _videoPlayerController = VideoPlayerController.networkUrl(
-        Uri.parse(fullUrl),
-        httpHeaders: {'Authorization': 'Token $token'},
+      
+      await _player.open(
+        Media(
+          fullUrl,
+          httpHeaders: {'Authorization': 'Token $token'},
+        ),
       );
-      if (mounted) { // Ensure mounted before setState
-        setState(() => _isOffline = false);
-      }
     }
     
-    // Debug print
-    print('Playing offline: $_isOffline, path: $localPath');
-
     try {
-      await _videoPlayerController!.initialize();
-      
-      // Load saved progress if any
-      try {
-        final progress = await ApiService()
-            .getProgress(widget.video.id)
-            .timeout(const Duration(seconds: 3));
-        if (progress != null && progress.positionSeconds > 0) {
-          await _videoPlayerController!.seekTo(Duration(seconds: progress.positionSeconds));
-        }
-      } catch (_) {
-        // No network or timeout — skip progress restore, play from beginning
+      final progress = await ApiService()
+          .getProgress(widget.video.id)
+          .timeout(const Duration(seconds: 3));
+      if (progress != null && progress.positionSeconds > 0) {
+        await _player.seek(Duration(seconds: progress.positionSeconds));
       }
+    } catch (_) {}
 
-      _chewieController = ChewieController(
-        videoPlayerController: _videoPlayerController!,
-        autoPlay: true,
-        looping: false,
-        aspectRatio: _videoPlayerController!.value.aspectRatio,
-        errorBuilder: (context, errorMessage) {
-          return Center(
-            child: Text(
-              errorMessage,
-              style: const TextStyle(color: Colors.white),
-            ),
-          );
-        },
-      );
-
-      if (mounted) setState(() {});
-
-      // Start progress saving timer
-      _progressTimer = Timer.periodic(const Duration(seconds: 10), (timer) {
-        if (_videoPlayerController!.value.isPlaying) {
-          ApiService().saveProgress(
-            widget.video.id, 
-            _videoPlayerController!.value.position.inSeconds,
-          );
-        }
+    if (mounted) {
+      setState(() {
+        _isInitialized = true;
       });
+    }
 
-    } catch (e) {
-      print('Error initializing player: $e');
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error playing video: $e')),
+    _progressTimer = Timer.periodic(const Duration(seconds: 10), (timer) {
+      if (_player.state.playing) {
+        ApiService().saveProgress(
+          widget.video.id, 
+          _player.state.position.inSeconds,
         );
       }
-    }
+    });
   }
 
   @override
   void dispose() {
-    _videoPlayerController?.dispose();
-    _chewieController?.dispose();
+    _player.dispose();
     _progressTimer?.cancel();
     super.dispose();
   }
@@ -158,71 +150,31 @@ class _PlayerScreenState extends State<PlayerScreen> {
         setState(() {
           _isDownloading = false;
           _downloadProgress = 0.0;
-          _initializePlayer(); // Re-initialize player to detect offline status
         });
       }
     }
   }
 
-  @override
-  Widget build(BuildContext context) {
-    if (defaultTargetPlatform == TargetPlatform.windows) {
-      // Windows fallback — show video info only, no player
-      return Scaffold(
-        backgroundColor: const Color(0xFF0F0F0F),
-        appBar: AppBar(
-          backgroundColor: const Color(0xFF0F0F0F),
-          iconTheme: const IconThemeData(color: Colors.white),
-        ),
-        body: Center(
-          child: Padding(
-            padding: const EdgeInsets.all(24),
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                const Icon(Icons.desktop_windows, color: Color(0xFF717171), size: 64),
-                const SizedBox(height: 16),
-                const Text(
-                  'Video playback is not supported on Windows desktop.',
-                  style: TextStyle(color: Colors.white, fontSize: 16),
-                  textAlign: TextAlign.center,
-                ),
-                const SizedBox(height: 8),
-                const Text(
-                  'Use the Android app to watch videos.',
-                  style: TextStyle(color: Color(0xFF717171), fontSize: 14),
-                  textAlign: TextAlign.center,
-                ),
-                const SizedBox(height: 32),
-                // Still show video info below
-                VideoInfo(
-                  video: widget.video,
-                  onDownload: _downloadVideo,
-                  isDownloading: _isDownloading,
-                  downloadProgress: _downloadProgress,
-                ),
-              ],
-            ),
-          ),
-        ),
-      );
-    }
+  Widget _buildPlayer() {
+    return _isInitialized
+        ? mk.Video(
+            controller: _videoController,
+            fit: BoxFit.contain, // Better for resizing performance
+          )
+        : const Center(child: CircularProgressIndicator());
+  }
 
-    return Scaffold(
-      appBar: AppBar(
-        title: Text(widget.video.title),
-      ),
-      body: Column(
+  Widget _buildInfoSection() {
+    return SingleChildScrollView(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Player Area
-          AspectRatio(
-            aspectRatio: 16 / 9,
-            child: _chewieController != null &&
-                    _chewieController!.videoPlayerController.value.isInitialized
-                ? Chewie(controller: _chewieController!)
-                : const Center(child: CircularProgressIndicator()),
+          VideoInfo(
+            video: widget.video,
+            onDownload: _downloadVideo,
+            isDownloading: _isDownloading,
+            downloadProgress: _downloadProgress,
           ),
-          
           if (_isOffline)
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
@@ -237,19 +189,135 @@ class _PlayerScreenState extends State<PlayerScreen> {
                 ],
               ),
             ),
+          const Divider(),
           
-          // Info Area
-          Expanded(
-            child: SingleChildScrollView(
-              child: VideoInfo(
-                video: widget.video,
-                onDownload: _downloadVideo,
-                isDownloading: _isDownloading,
-                downloadProgress: _downloadProgress,
+          if (_comments.isNotEmpty) ...[
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
+              child: Row(
+                children: [
+                  const Icon(Icons.comment, size: 20),
+                  const SizedBox(width: 8),
+                  Text(
+                    'Comments (${_comments.length})',
+                    style: const TextStyle(fontWeight: FontWeight.bold),
+                  ),
+                ],
               ),
             ),
+            ListView.builder(
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              itemCount: _comments.length > 3 ? 3 : _comments.length,
+              itemBuilder: (context, index) {
+                final comment = _comments[index];
+                return ListTile(
+                  dense: true,
+                  leading: const CircleAvatar(radius: 14, child: Icon(Icons.person, size: 16)),
+                  title: Text(comment['author'] ?? 'Anonymous', style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+                  subtitle: Text(comment['text'] ?? '', style: const TextStyle(fontSize: 12)),
+                );
+              },
+            ),
+            const Divider(),
+          ],
+
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
+            child: Row(
+              children: const [
+                Icon(Icons.video_library, size: 20),
+                SizedBox(width: 8),
+                Text(
+                  'Related Videos',
+                  style: TextStyle(fontWeight: FontWeight.bold),
+                ),
+              ],
+            ),
           ),
+          if (_isLoadingExtras)
+            const Center(child: Padding(
+              padding: EdgeInsets.all(16.0),
+              child: CircularProgressIndicator(),
+            ))
+          else if (_relatedVideos.isEmpty)
+            const Padding(
+              padding: EdgeInsets.all(16.0),
+              child: Text('No related videos found'),
+            )
+          else
+            ListView.builder(
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              itemCount: _relatedVideos.length,
+              itemBuilder: (context, index) {
+                final v = _relatedVideos[index];
+                return ListTile(
+                  leading: AspectRatio(
+                    aspectRatio: 16 / 9,
+                    child: Image.network(
+                      v.thumbUrl,
+                      fit: BoxFit.cover,
+                      headers: _token != null ? {'Authorization': 'Token $_token'} : null,
+                      errorBuilder: (_, __, ___) => Container(color: Colors.grey),
+                    ),
+                  ),
+                  title: Text(v.title, maxLines: 2, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold)),
+                  subtitle: Text(v.channelName, style: const TextStyle(fontSize: 11)),
+                  onTap: () {
+                    _player.stop();
+                    Navigator.of(context).pushReplacement(
+                      MaterialPageRoute(builder: (_) => PlayerScreen(video: v)),
+                    );
+                  },
+                );
+              },
+            ),
+          const SizedBox(height: 32),
         ],
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: Text(widget.video.title),
+      ),
+      body: LayoutBuilder(
+        builder: (context, constraints) {
+          if (constraints.maxWidth > 900) {
+            // Desktop Layout: Side-by-side
+            return Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Expanded(
+                  flex: 3,
+                  child: Container(
+                    color: Colors.black,
+                    alignment: Alignment.center,
+                    child: _buildPlayer(),
+                  ),
+                ),
+                Expanded(
+                  flex: 1,
+                  child: _buildInfoSection(),
+                ),
+              ],
+            );
+          } else {
+            // Mobile Layout: Vertical
+            return Column(
+              children: [
+                _buildPlayer(),
+                Expanded(
+                  child: _buildInfoSection(),
+                ),
+              ],
+            );
+          }
+        },
       ),
     );
   }
