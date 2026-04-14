@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:timeago/timeago.dart' as timeago;
 import '../../../models/video.dart';
 import '../../../screens/player/player_screen.dart';
@@ -28,11 +29,16 @@ class VideoCard extends StatelessWidget {
               child: Stack(
                 fit: StackFit.expand,
                 children: [
-                  Image.network(
-                    video.thumbUrl,
-                    headers: {'Authorization': 'Token $token'},
+                  CachedNetworkImage(
+                    imageUrl: video.thumbUrl,
+                    httpHeaders: {'Authorization': 'Token $token'},
                     fit: BoxFit.cover,
-                    errorBuilder: (context, error, stack) => Container(
+                    fadeOutDuration: const Duration(milliseconds: 250),
+                    fadeInDuration: const Duration(milliseconds: 500),
+                    placeholder: (context, url) => Container(
+                      color: const Color(0xFF1A1A1A),
+                    ),
+                    errorWidget: (context, url, error) => Container(
                       color: const Color(0xFF1A1A1A),
                       child: const Center(
                         child: Icon(Icons.broken_image, color: Color(0xFF717171), size: 32),

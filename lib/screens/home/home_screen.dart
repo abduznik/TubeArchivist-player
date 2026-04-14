@@ -160,16 +160,19 @@ class _HomeScreenState extends State<HomeScreen> {
         final allVideos = [...firstVideos, ...results.expand((e) => e)];
         final seen = <String>{};
         final unique = allVideos.where((v) => seen.add(v.id)).toList();
-        final interleaved = _interleaveByChannel(unique);
+        
+        // Potential performance bottleneck: Interleaving large lists on UI thread
+        final interleaved = unique.length > 50 
+            ? _interleaveByChannel(unique.take(50).toList()) 
+            : _interleaveByChannel(unique);
         
         if (mounted) {
           setState(() {
             _videos.addAll(interleaved);
-            _currentPage = 2; // Next sequential load from page 2
+            _currentPage = 2; 
             _isLoading = false;
             _isLoadingMore = false; 
             _hasMore = interleaved.isNotEmpty; 
-            print('HomeScreen: Discover - Final video count: ${_videos.length}');
           });
         }
       } else {

@@ -22,8 +22,38 @@ class PlayerScreen extends StatefulWidget {
 
 class _PlayerScreenState extends State<PlayerScreen> {
   // MediaKit controllers
-  late final Player _player = Player();
-  late final mk.VideoController _videoController = mk.VideoController(_player);
+  late final Player _player = Player(
+    configuration: PlayerConfiguration(
+      title: 'TubeArchivist Player',
+      // Increase buffer size to 64MB for smoother initial buffering
+      bufferSize: 64 * 1024 * 1024,
+      ready: () {
+        debugPrint('Player ready');
+        if (_player.platform is NativePlayer) {
+          final native = _player.platform as NativePlayer;
+          // Optimize for fast seeking
+          native.setProperty('fast-seek', 'yes');
+          // Allow seeking in the cache
+          native.setProperty('demuxer-seekable-cache', 'yes');
+          // Buffering tweaks: don't download too much at once, but enough to stay ahead
+          native.setProperty('demuxer-readahead-secs', '30'); 
+          native.setProperty('demuxer-max-bytes', '104857600'); // 100MB readahead
+          native.setProperty('demuxer-max-back-bytes', '52428800'); // 50MB backward cache
+          // Streaming optimizations
+          native.setProperty('cache-pause', 'no');
+          native.setProperty('network-timeout', '20');
+        }
+      },
+    ),
+  );
+  late final mk.VideoController _videoController = mk.VideoController(
+    _player,
+    configuration: mk.VideoControllerConfiguration(
+      // Hardware acceleration on macOS can cause crashes after resize in media_kit_video 2.0.1
+      enableHardwareAcceleration: !Platform.isMacOS,
+    ),
+  );
+
   
   Timer? _progressTimer;
   bool _isDownloading = false;
@@ -35,9 +65,22 @@ class _PlayerScreenState extends State<PlayerScreen> {
   bool _isLoadingExtras = false;
   String? _token;
 
+  StreamSubscription? _errorSubscription;
+
   @override
   void initState() {
     super.initState();
+    _errorSubscription = _player.stream.error.listen((error) {
+      debugPrint('MediaKit Error: $error');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Playback error: $error'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    });
     _initializePlayer();
     _loadExtras();
   }
@@ -64,34 +107,55 @@ class _PlayerScreenState extends State<PlayerScreen> {
 
   Future<void> _initializePlayer() async {
     final appDir = await getApplicationDocumentsDirectory();
+    if (!mounted) return;
     final localPath = '${appDir.path}/downloads/${widget.video.id}.mp4';
     final localFile = File(localPath);
     
     final prefs = PreferencesService();
     final token = await prefs.getToken() ?? '';
     final serverUrl = await prefs.getServerUrl() ?? '';
+    if (!mounted) return;
     
-    if (await localFile.exists()) {
-      _isOffline = true;
-      await _player.open(Media(localFile.path));
-    } else {
-      _isOffline = false;
-      final fullUrl = widget.video.mediaUrl.startsWith('http')
-          ? widget.video.mediaUrl
-          : '$serverUrl${widget.video.mediaUrl}';
-      
-      await _player.open(
-        Media(
-          fullUrl,
-          httpHeaders: {'Authorization': 'Token $token'},
-        ),
-      );
+    try {
+      if (await localFile.exists()) {
+        _isOffline = true;
+        await _player.open(Media(localFile.path));
+      } else {
+        _isOffline = false;
+        // Video model already builds the full URL in Video.fromJson
+        final fullUrl = widget.video.mediaUrl;
+        
+        await _player.open(
+          Media(
+            fullUrl,
+            httpHeaders: {
+              'Authorization': 'Token $token',
+              'User-Agent': 'TubeArchivistCompanion/1.1.0 (Flutter; macOS/Windows/Android)',
+            },
+          ),
+        );
+      }
+    } catch (e) {
+      debugPrint('MediaKit Open Error: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Failed to open video: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
     }
     
+    if (!mounted) return;
+
     try {
       final progress = await ApiService()
           .getProgress(widget.video.id)
           .timeout(const Duration(seconds: 3));
+      
+      if (!mounted) return;
+      
       if (progress != null && progress.positionSeconds > 0) {
         await _player.seek(Duration(seconds: progress.positionSeconds));
       }
@@ -115,6 +179,7 @@ class _PlayerScreenState extends State<PlayerScreen> {
 
   @override
   void dispose() {
+    _errorSubscription?.cancel();
     _player.dispose();
     _progressTimer?.cancel();
     super.dispose();
@@ -156,12 +221,23 @@ class _PlayerScreenState extends State<PlayerScreen> {
   }
 
   Widget _buildPlayer() {
-    return _isInitialized
-        ? mk.Video(
-            controller: _videoController,
-            fit: BoxFit.contain, // Better for resizing performance
-          )
-        : const Center(child: CircularProgressIndicator());
+    return AspectRatio(
+      aspectRatio: 16 / 9,
+      child: Container(
+        color: Colors.black,
+        child: _isInitialized
+            ? mk.Video(
+                controller: _videoController,
+                fit: BoxFit.contain,
+                controls: mk.AdaptiveVideoControls,
+              )
+            : const Center(
+                child: CircularProgressIndicator(
+                  color: Colors.white,
+                ),
+              ),
+      ),
+    );
   }
 
   Widget _buildInfoSection() {
@@ -294,10 +370,17 @@ class _PlayerScreenState extends State<PlayerScreen> {
               children: [
                 Expanded(
                   flex: 3,
-                  child: Container(
-                    color: Colors.black,
-                    alignment: Alignment.center,
-                    child: _buildPlayer(),
+                  child: SingleChildScrollView(
+                    child: Column(
+                      children: [
+                        Container(
+                          color: Colors.black,
+                          alignment: Alignment.center,
+                          child: _buildPlayer(),
+                        ),
+                        // You could add more content here that stays under the video on desktop
+                      ],
+                    ),
                   ),
                 ),
                 Expanded(

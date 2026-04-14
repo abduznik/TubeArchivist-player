@@ -32,13 +32,17 @@ class VideoInfo extends StatelessWidget {
           const SizedBox(height: 8),
           Row(
             children: [
-              Text(
-                '${video.channelName} • ${timeago.format(video.published)}',
-                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                  color: Colors.grey,
+              Expanded(
+                child: Text(
+                  '${video.channelName} • ${timeago.format(video.published)}',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                    color: Colors.grey,
+                  ),
                 ),
               ),
-              const Spacer(),
+              const SizedBox(width: 8),
               if (isDownloading)
                 SizedBox(
                   width: 24,
