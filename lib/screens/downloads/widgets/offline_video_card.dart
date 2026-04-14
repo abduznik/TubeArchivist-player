@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../../models/video.dart';
 import '../../player/player_screen.dart';
-import '../../../services/download_service.dart';
 
 class OfflineVideoCard extends StatelessWidget {
   final Video video;

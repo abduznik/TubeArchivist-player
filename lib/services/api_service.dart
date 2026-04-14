@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import '../core/constants.dart';
 import '../models/video.dart';
@@ -37,7 +38,7 @@ class ApiService {
           'page': page.toString(),
           'page_size': '50', 
           'ordering': '?', 
-          if (channelId != null) 'channel': channelId,
+          'channel': ?channelId,
         });
 
     final response = await http.get(uri, headers: _headers);
@@ -58,17 +59,12 @@ class ApiService {
   }
 
   Future<List<Video>> getVideos({int page = 0, String? channelId}) async {
-    final queryParams = {
-      'page': page.toString(),
-      if (channelId != null) 'channel': channelId,
-    };
-    
     final uri = Uri.parse('$_baseUrl${AppConstants.endpointVideo}')
         .replace(queryParameters: {
           'page': page.toString(),
           'page_size': '50', // Add page_size parameter for more videos per page
           'ordering': '?', 
-          if (channelId != null) 'channel': channelId,
+          'channel': ?channelId,
         });
 
     final response = await http.get(uri, headers: _headers);
@@ -213,7 +209,7 @@ class ApiService {
         return related;
       }
     } catch (e) {
-      print('Error fetching related videos: $e');
+      debugPrint('Error fetching related videos: $e');
     }
     return [];
   }
@@ -246,7 +242,7 @@ class ApiService {
         return json is List ? json : (json['data'] ?? []);
       }
     } catch (e) {
-      print('Error fetching comments: $e');
+      debugPrint('Error fetching comments: $e');
     }
     return [];
   }
@@ -265,15 +261,15 @@ class ApiService {
       'direction': 'desc',
     });
     
-    print('ApiService: Fetching recent videos from: $uri');
+    debugPrint('ApiService: Fetching recent videos from: $uri');
     final response = await http.get(uri, headers: _headers);
     if (response.statusCode == 200) {
       final json = jsonDecode(response.body);
       final List<dynamic> data = json is List ? json : (json['data'] ?? []);
       
       if (data.isNotEmpty) {
-        print('ApiService: ALL Raw Keys: ${data[0].keys.toList()}');
-        print('ApiService: Raw Published: ${data[0]['published']}');
+        debugPrint('ApiService: ALL Raw Keys: ${data[0].keys.toList()}');
+        debugPrint('ApiService: Raw Published: ${data[0]['published']}');
       }
 
       final videos = data.map((e) => Video.fromJson(e, _baseUrl)).toList();

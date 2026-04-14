@@ -32,7 +32,7 @@ class ChannelChip extends StatelessWidget {
         backgroundColor: isSelected ? Colors.white : const Color(0xFF272727),
         side: isSelected 
               ? BorderSide.none 
-              : BorderSide(color: Colors.white.withOpacity(0.1)),
+              : BorderSide(color: Colors.white.withValues(alpha: 0.1)),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
       ),
     );

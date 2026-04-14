@@ -69,7 +69,7 @@ class _DownloadsScreenState extends State<DownloadsScreen> with SingleTickerProv
         setState(() => _queue = queue);
       }
     } catch (e) {
-      print('Error loading queue: $e');
+      debugPrint('Error loading queue: $e');
     }
   }
 
@@ -80,7 +80,7 @@ class _DownloadsScreenState extends State<DownloadsScreen> with SingleTickerProv
         setState(() => _offlineVideos = videos);
       }
     } catch (e) {
-      print('Error loading offline videos: $e');
+      debugPrint('Error loading offline videos: $e');
     }
   }
 

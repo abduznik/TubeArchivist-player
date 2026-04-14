@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'dart:io';
+import 'package:flutter/foundation.dart';
 import 'package:dio/dio.dart';
 import 'package:path_provider/path_provider.dart';
 import '../models/video.dart';
@@ -61,7 +62,7 @@ class DownloadService {
                ));
             }
           } catch (e) {
-            print('Error parsing local video metadata: $e');
+            debugPrint('Error parsing local video metadata: $e');
           }
         }
       }

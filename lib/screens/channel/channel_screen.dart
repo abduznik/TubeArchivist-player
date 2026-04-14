@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../services/api_service.dart';
 import '../../models/video.dart';
-import '../../models/channel.dart';
 import '../../services/preferences_service.dart';
 import '../home/widgets/video_card.dart';
 

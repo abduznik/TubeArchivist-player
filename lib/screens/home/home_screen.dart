@@ -67,7 +67,7 @@ class _HomeScreenState extends State<HomeScreen> {
         });
       }
     } catch (e) {
-      print('Error loading channels: $e');
+      debugPrint('Error loading channels: $e');
     }
   }
 
@@ -132,7 +132,7 @@ class _HomeScreenState extends State<HomeScreen> {
     });
 
     try {
-      print('HomeScreen: Loading videos, filter: $_activeFilter, page: $_currentPage');
+      debugPrint('HomeScreen: Loading videos, filter: $_activeFilter, page: $_currentPage');
       if (refresh && _activeFilter == 'Discover' && _selectedChannelId == null) {
         // Discover: Interleaved Random Selection
         final firstResult = await ApiService().getVideosWithPagination(
@@ -142,7 +142,7 @@ class _HomeScreenState extends State<HomeScreen> {
         final lastPage = firstResult['last_page'] as int;
         final firstVideos = firstResult['videos'] as List<Video>;
         
-        print('HomeScreen: Discover - Initial fetch count: ${firstVideos.length}');
+        debugPrint('HomeScreen: Discover - Initial fetch count: ${firstVideos.length}');
         
         final rand = Random();
         final randomPages = <int>{};
@@ -187,7 +187,7 @@ class _HomeScreenState extends State<HomeScreen> {
           );
         }
 
-        print('HomeScreen: Loaded ${newVideos.length} sequential videos from page $_currentPage');
+        debugPrint('HomeScreen: Loaded ${newVideos.length} sequential videos from page $_currentPage');
         final existingIds = _videos.map((v) => v.id).toSet();
         final uniqueNewVideos = newVideos.where((v) => !existingIds.contains(v.id)).toList();
         
@@ -206,12 +206,12 @@ class _HomeScreenState extends State<HomeScreen> {
             }
             _isLoading = false; 
             _isLoadingMore = false;
-            print('HomeScreen: Total videos now: ${_videos.length}');
+            debugPrint('HomeScreen: Total videos now: ${_videos.length}');
           });
         }
       }
     } catch (e) {
-      print('HomeScreen: Error loading videos: $e');
+      debugPrint('HomeScreen: Error loading videos: $e');
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar( 
           SnackBar(content: Text('Failed to load videos: $e')),

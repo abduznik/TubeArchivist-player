@@ -32,8 +32,16 @@ class _PlayerScreenState extends State<PlayerScreen> {
         if (_player.platform is NativePlayer) {
           final native = _player.platform as NativePlayer;
           // Set essential MPV properties for high-res streaming
-          native.setProperty('vo', 'gpu');
-          native.setProperty('hwdec', 'auto-safe');
+          if (Platform.isAndroid) {
+            native.setProperty('vo', 'gpu');
+            native.setProperty('hwdec', 'mediacodec');
+          } else if (Platform.isWindows) {
+            native.setProperty('vo', 'gpu');
+            native.setProperty('hwdec', 'auto-safe');
+          } else if (Platform.isMacOS) {
+            // Software decoding on macOS is more stable with the current plugin version
+            native.setProperty('hwdec', 'no');
+          }
           native.setProperty('fast-seek', 'yes');
           native.setProperty('demuxer-seekable-cache', 'yes');
           // Buffering tweaks for snappy streaming
@@ -49,8 +57,9 @@ class _PlayerScreenState extends State<PlayerScreen> {
   );
   late final mk.VideoController _videoController = mk.VideoController(
     _player,
-    configuration: const mk.VideoControllerConfiguration(
-      enableHardwareAcceleration: true,
+    configuration: mk.VideoControllerConfiguration(
+      // Hardware acceleration on macOS can cause crashes after resize in media_kit_video 2.0.1
+      enableHardwareAcceleration: !Platform.isMacOS,
     ),
   );
 
@@ -113,7 +122,6 @@ class _PlayerScreenState extends State<PlayerScreen> {
     
     final prefs = PreferencesService();
     final token = await prefs.getToken() ?? '';
-    final serverUrl = await prefs.getServerUrl() ?? '';
     if (!mounted) return;
     
     try {
@@ -335,7 +343,7 @@ class _PlayerScreenState extends State<PlayerScreen> {
                       v.thumbUrl,
                       fit: BoxFit.cover,
                       headers: _token != null ? {'Authorization': 'Token $_token'} : null,
-                      errorBuilder: (_, __, ___) => Container(color: Colors.grey),
+                      errorBuilder: (context, error, stackTrace) => Container(color: Colors.grey),
                     ),
                   ),
                   title: Text(v.title, maxLines: 2, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold)),

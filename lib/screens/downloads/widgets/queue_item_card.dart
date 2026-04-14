@@ -28,7 +28,7 @@ class QueueItemCard extends StatelessWidget {
       margin: const EdgeInsets.only(bottom: 8),
       child: ListTile(
         leading: CircleAvatar(
-          backgroundColor: statusColor.withOpacity(0.2),
+          backgroundColor: statusColor.withValues(alpha: 0.2),
           child: Icon(statusIcon, color: statusColor),
         ),
         title: Text(item.title, maxLines: 1, overflow: TextOverflow.ellipsis),
