@@ -31,26 +31,26 @@ class _PlayerScreenState extends State<PlayerScreen> {
         debugPrint('Player ready');
         if (_player.platform is NativePlayer) {
           final native = _player.platform as NativePlayer;
-          // Optimize for fast seeking
+          // Set essential MPV properties for high-res streaming
+          native.setProperty('vo', 'gpu');
+          native.setProperty('hwdec', 'auto-safe');
           native.setProperty('fast-seek', 'yes');
-          // Allow seeking in the cache
           native.setProperty('demuxer-seekable-cache', 'yes');
-          // Buffering tweaks: don't download too much at once, but enough to stay ahead
-          native.setProperty('demuxer-readahead-secs', '30'); 
-          native.setProperty('demuxer-max-bytes', '104857600'); // 100MB readahead
+          // Buffering tweaks for snappy streaming
+          native.setProperty('demuxer-readahead-secs', '60'); 
+          native.setProperty('demuxer-max-bytes', '157286400'); // 150MB forward readahead
           native.setProperty('demuxer-max-back-bytes', '52428800'); // 50MB backward cache
-          // Streaming optimizations
+          // Performance and network
           native.setProperty('cache-pause', 'no');
-          native.setProperty('network-timeout', '20');
+          native.setProperty('network-timeout', '30');
         }
       },
     ),
   );
   late final mk.VideoController _videoController = mk.VideoController(
     _player,
-    configuration: mk.VideoControllerConfiguration(
-      // Hardware acceleration on macOS can cause crashes after resize in media_kit_video 2.0.1
-      enableHardwareAcceleration: !Platform.isMacOS,
+    configuration: const mk.VideoControllerConfiguration(
+      enableHardwareAcceleration: true,
     ),
   );
 
