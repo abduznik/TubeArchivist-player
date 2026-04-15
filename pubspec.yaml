@@ -33,6 +33,7 @@ flutter_launcher_icons:
     icon_size: 48
   image_path: "icon.png"
 inno_bundle:
+  id: 8d9b5b80-3889-11f1-8850-155185c17681
   app:
     name: "TubeArchivist Companion"
     description: "TubeArchivist companion Flutter app"
