@@ -33,7 +33,7 @@ jobs:
           path: build/app/outputs/flutter-apk/app-release.apk
 
   build_windows:
-    name: Build Windows
+    name: Build Windows Installer
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
@@ -43,17 +43,55 @@ jobs:
           cache: true
       - name: Install dependencies
         run: flutter pub get
-      - name: Build Windows
-        run: flutter build windows --release --build-name=${{ github.event.inputs.version }} --build-number=${{ github.run_number }}
-      - name: Upload Windows
+      - name: Build Windows Installer
+        run: dart run inno_bundle:build --release --build-name=${{ github.event.inputs.version }} --build-number=${{ github.run_number }}
+      - name: Upload Windows Installer
         uses: actions/upload-artifact@v4
         with:
           name: windows-release
-          path: build/windows/x64/runner/Release/
+          path: build/windows/x64/installer/*.exe
+
+  build_macos:
+    name: Build macOS DMG
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: 'stable'
+          cache: true
+      - name: Install dependencies
+        run: flutter pub get
+      - name: Install create-dmg
+        run: brew install create-dmg
+      - name: Build macOS
+        env:
+          FLUTTER_XCODE_CODE_SIGNING_ALLOWED: "NO"
+          FLUTTER_XCODE_CODE_SIGNING_REQUIRED: "NO"
+          FLUTTER_XCODE_CODE_SIGN_IDENTITY: ""
+        run: |
+          flutter build macos --release \
+            --build-name=${{ github.event.inputs.version }} \
+            --build-number=${{ github.run_number }}
+      - name: Create DMG
+        run: |
+          create-dmg \
+            --volname "TubeArchivist Companion" \
+            --window-pos 200 120 \
+            --window-size 800 400 \
+            --icon-size 100 \
+            --app-drop-link 600 185 \
+            "tubearchivist_companion-macos.dmg" \
+            "build/macos/Build/Products/Release/"
+      - name: Upload macOS DMG
+        uses: actions/upload-artifact@v4
+        with:
+          name: macos-release
+          path: tubearchivist_companion-macos.dmg
 
   release:
     name: Create Release
-    needs: [build_android, build_windows]
+    needs: [build_android, build_windows, build_macos]
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -67,12 +105,12 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           name: windows-release
-          path: artifacts/windows/
-      - name: Zip Windows Release
-        run: |
-          cd artifacts/windows
-          zip -r ../tubearchivist_companion-windows.zip .
-          cd ../..
+          path: artifacts/
+      - name: Download macOS Artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: macos-release
+          path: artifacts/
       - name: Rename APK
         run: mv artifacts/app-release.apk artifacts/tubearchivist_companion-android.apk
       - name: Create Release
@@ -82,7 +120,8 @@ jobs:
           name: Release ${{ github.event.inputs.version }}
           files: |
             artifacts/tubearchivist_companion-android.apk
-            artifacts/tubearchivist_companion-windows.zip
+            artifacts/*.exe
+            artifacts/tubearchivist_companion-macos.dmg
           draft: false
           prerelease: false
         env:

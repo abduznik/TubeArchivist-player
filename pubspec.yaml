@@ -32,6 +32,14 @@ flutter_launcher_icons:
     image_path: "icon.png"
     icon_size: 48
   image_path: "icon.png"
+inno_bundle:
+  app:
+    name: "TubeArchivist Companion"
+    description: "TubeArchivist companion Flutter app"
+    url: "https://github.com/abduznik/tubearchivist-companion"
+  publisher:
+    name: "abduznik"
+
 # Dependencies specify other packages that your package needs in order to work.
 # To automatically upgrade your package dependencies to the latest versions
 # consider running `flutter pub upgrade --major-versions`. Alternatively,
@@ -59,6 +67,7 @@ dependencies:
   cupertino_icons: ^1.0.8
 
 dev_dependencies:
+  inno_bundle: any
   flutter_launcher_icons: ^0.14.1
   flutter_test:
     sdk: flutter
