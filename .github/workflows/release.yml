@@ -62,8 +62,6 @@ jobs:
           cache: true
       - name: Install dependencies
         run: flutter pub get
-      - name: Install create-dmg
-        run: brew install create-dmg
       - name: Build macOS
         env:
           FLUTTER_XCODE_CODE_SIGNING_ALLOWED: "NO"
@@ -75,14 +73,8 @@ jobs:
             --build-number=${{ github.run_number }}
       - name: Create DMG
         run: |
-          create-dmg \
-            --volname "TubeArchivist Companion" \
-            --window-pos 200 120 \
-            --window-size 800 400 \
-            --icon-size 100 \
-            --app-drop-link 600 185 \
-            "tubearchivist_companion-macos.dmg" \
-            "build/macos/Build/Products/Release/"
+          npx create-dmg build/macos/Build/Products/Release/tubearchivist_companion.app --overwrite
+          mv *.dmg tubearchivist_companion-macos.dmg
       - name: Upload macOS DMG
         uses: actions/upload-artifact@v4
         with:
