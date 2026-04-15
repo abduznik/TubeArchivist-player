@@ -34,12 +34,12 @@ flutter_launcher_icons:
   image_path: "icon.png"
 inno_bundle:
   id: 8d9b5b80-3889-11f1-8850-155185c17681
+  publisher: "abduznik"
+  maintainer: "abduznik <https://github.com/abduznik>"
   app:
     name: "TubeArchivist Companion"
     description: "TubeArchivist companion Flutter app"
     url: "https://github.com/abduznik/tubearchivist-companion"
-  publisher:
-    name: "abduznik"
 
 # Dependencies specify other packages that your package needs in order to work.
 # To automatically upgrade your package dependencies to the latest versions
