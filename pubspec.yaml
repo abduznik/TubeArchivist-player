@@ -36,6 +36,8 @@ inno_bundle:
   id: 8d9b5b80-3889-11f1-8850-155185c17681
   publisher: "abduznik"
   maintainer: "abduznik <https://github.com/abduznik>"
+  languages:
+    - english
   app:
     name: "TubeArchivist Companion"
     description: "TubeArchivist companion Flutter app"
