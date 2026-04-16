@@ -71,6 +71,15 @@ jobs:
           flutter build macos --release \
             --build-name=${{ github.event.inputs.version }} \
             --build-number=${{ github.run_number }}
+      - name: Ad-hoc sign macOS app
+        run: |
+          # Ad-hoc sign all frameworks and the app itself
+          # This is necessary because media_kit's bundled frameworks like Ass.framework 
+          # must be signed to be loaded by a signed (even ad-hoc) main executable on ARM64.
+          find build/macos/Build/Products/Release/tubearchivist_companion.app/Contents/Frameworks -name "*.framework" -exec codesign --force --sign - {} +
+          find build/macos/Build/Products/Release/tubearchivist_companion.app/Contents/Frameworks -name "*.dylib" -exec codesign --force --sign - {} +
+          codesign --force --sign - build/macos/Build/Products/Release/tubearchivist_companion.app/Contents/MacOS/tubearchivist_companion
+          codesign --force --sign - build/macos/Build/Products/Release/tubearchivist_companion.app
       - name: Create DMG
         run: |
           npx create-dmg build/macos/Build/Products/Release/tubearchivist_companion.app --overwrite --no-code-sign
