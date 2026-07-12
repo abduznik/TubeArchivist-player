@@ -1,3 +1,9 @@
+## Support This Project
+
+> **All projects made with passion** 💙
+
+[![Sponsor me](https://img.shields.io/badge/❤️%20Sponsor-GitHub-red?style=for-the-badge)](https://github.com/sponsors/abduznik)  
+
 # TubeArchivist Companion (YouTube Clone)
 
 A feature-rich Flutter client for [TubeArchivist](https://github.com/tubearchivist/tubearchivist), designed to provide a "YouTube clone" experience for your self-hosted video archive.
